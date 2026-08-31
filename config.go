@@ -12,8 +12,8 @@ import (
 const WellKnownProtectedResource = "/.well-known/oauth-protected-resource"
 
 // Configuration errors. Returned from New, never panicked: a misconfigured
-// endpoint has to surface in the caller's startup error path, the same contract
-// as platform.Wrap and oauth.Middleware.
+// endpoint has to surface in the caller's startup error path, where the caller
+// can decide whether to refuse to start.
 var (
 	ErrNoResource      = errors.New("mcp: Resource is required")
 	ErrResourceNotAbs  = errors.New("mcp: Resource must be an absolute URL with a host")

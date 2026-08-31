@@ -13,10 +13,9 @@ type Endpoint struct {
 // New validates the configuration and returns the endpoint.
 //
 // It returns an error rather than panicking or degrading, so a misconfiguration
-// surfaces at startup in the caller's normal error path — the same contract as
-// platform.Wrap and oauth.Middleware. Build this at boot, not per request: a bad
-// resource indicator should be a pod that will not start, not a 500 on
-// somebody's first tool call.
+// surfaces at startup in the caller's normal error path. Build this at boot, not
+// per request: a bad resource indicator should be a process that will not start,
+// not a 500 on somebody's first tool call.
 func New(cfg Config) (*Endpoint, error) {
 	if err := cfg.validate(); err != nil {
 		return nil, err

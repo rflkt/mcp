@@ -1,0 +1,34 @@
+# Lint config for this repository.
+#
+# A trimmed relative of the organization's shared config: the shared one lives in
+# a private repository and excludes generated protobuf, templ and mock files that
+# do not exist here. Kept deliberately small so an outside contributor can read
+# it in one sitting.
+version: "2"
+
+linters:
+  enable:
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - revive
+    - gosec
+    - misspell
+    - bodyclose
+    - noctx
+    - errorlint
+
+  settings:
+    revive:
+      rules:
+        - name: exported
+          severity: warning
+
+  exclusions:
+    rules:
+      # Tests construct deliberately broken handlers and ignore writes to a
+      # recorder; neither is worth a lint escape hatch at each site.
+      - path: _test\.go
+        linters: [errcheck, gosec, noctx]
