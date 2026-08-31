@@ -1,0 +1,95 @@
+# CI for this repository.
+#
+# Deliberately self-contained rather than calling the org's shared pipeline.
+# Two reasons, and the second is the more interesting one.
+#
+# Technically, a PUBLIC repository cannot use a reusable workflow stored in a
+# PRIVATE one. Granting organization access on the private repo extends to
+# private and internal repos, not public ones. Tested here: the caller failed in
+# 0s with no jobs.
+#
+# But most of the shared pipeline would not fit anyway. It gates Sentry
+# initialization (a library cannot initialize Sentry), product analytics (there
+# is no user-facing surface), a service layer graph (this is a flat library),
+# and a Linear issue id in the PR title -- which an outside contributor could
+# not satisfy, and this repository is public precisely so that outsiders can use
+# and contribute to it.
+#
+# What IS gated here is the property the package's whole design rests on: it
+# depends on the standard library and nothing else.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Build
+        run: go build ./...
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test
+        run: go test -race -coverprofile=coverage.out ./...
+
+      - name: Coverage
+        run: go tool cover -func=coverage.out | tail -1
+
+      # The load-bearing property of this package, and the one thing here worth
+      # failing a build over.
+      #
+      # This package is meant to be embeddable in software handed to a customer,
+      # where every transitive dependency is something their review has to clear.
+      # A single convenience import -- a logger, a router, an assertion helper --
+      # ends that quietly, and nothing else would report it.
+      - name: Standard library only
+        run: |
+          deps="$(go list -deps ./... | grep -E '^[^/]+\.[^/]+/' || true)"
+          own='^github\.com/rflkt/mcp'
+          foreign="$(echo "$deps" | grep -vE "$own" | grep -v '^$' || true)"
+          if [ -n "$foreign" ]; then
+            echo "::error::This package must depend on the standard library only. Found:"
+            echo "$foreign"
+            exit 1
+          fi
+          echo "Standard library only: confirmed."
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
+
+  vulnerabilities:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: govulncheck
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          govulncheck ./...
