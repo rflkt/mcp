@@ -130,6 +130,23 @@ func (e *Endpoint) Handler() http.Handler {
 	return mux
 }
 
+// Middleware returns the endpoint's credential dispatch as ordinary middleware,
+// for a service whose tool surface is already mounted on its own router.
+//
+// Routes is the better choice when you can use it: it mounts the tool surface
+// and the discovery documents together, so the two cannot drift apart. Reach for
+// this when the tool surface is a handler your router already owns and cannot be
+// expressed as a plain http.Handler -- a framework handler taking that
+// framework's own context, typically -- in which case mount this in front of it
+// and mount the Public routes from Routes separately.
+//
+// The wrapped handler runs only after a Verifier has accepted the request, and
+// can rely on Principal.Bind having run. A rejection produces this package's 401
+// and challenge, exactly as it would through Routes.
+func (e *Endpoint) Middleware() func(http.Handler) http.Handler {
+	return e.authenticated
+}
+
 // authenticated wraps the tool surface in credential dispatch.
 func (e *Endpoint) authenticated(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

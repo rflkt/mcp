@@ -536,3 +536,55 @@ func TestFromMiddlewareWithNilClaimsClaimsNothing(t *testing.T) {
 		t.Error("a FromMiddleware with nil claims claimed a credential")
 	}
 }
+
+// Middleware is what a service uses when its tool surface is already mounted on
+// its own router and cannot be expressed as a plain http.Handler.
+func TestMiddlewareAppliesTheSameDispatchAsRoutes(t *testing.T) {
+	var reached bool
+	cfg := baseConfig()
+	cfg.Verifiers = []mcp.Verifier{mcp.PrefixVerifier{
+		VerifierName: "key",
+		Prefix:       "k_",
+		Validate: func(*http.Request, string) (*mcp.Principal, error) {
+			return &mcp.Principal{Subject: "u1"}, nil
+		},
+	}}
+
+	e, err := mcp.New(cfg)
+	if err != nil {
+		t.Fatalf("New() = %v", err)
+	}
+
+	guarded := e.Middleware()(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		reached = true
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	t.Run("rejects with the endpoint's own challenge", func(t *testing.T) {
+		reached = false
+		rec := httptest.NewRecorder()
+		guarded.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/mcp", strings.NewReader("{}")))
+
+		if rec.Code != http.StatusUnauthorized {
+			t.Errorf("no credential = %d, want 401", rec.Code)
+		}
+		if got := rec.Header().Get("WWW-Authenticate"); !strings.Contains(got, "resource_metadata") {
+			t.Errorf("WWW-Authenticate = %q, want the endpoint's challenge", got)
+		}
+		if reached {
+			t.Error("the tool surface ran for an unauthenticated request")
+		}
+	})
+
+	t.Run("passes an accepted credential through", func(t *testing.T) {
+		reached = false
+		req := httptest.NewRequest(http.MethodPost, "/mcp", strings.NewReader("{}"))
+		req.Header.Set("Authorization", "Bearer k_good")
+		rec := httptest.NewRecorder()
+		guarded.ServeHTTP(rec, req)
+
+		if rec.Code != http.StatusOK || !reached {
+			t.Errorf("accepted credential = %d, reached = %v; want 200, true", rec.Code, reached)
+		}
+	})
+}
