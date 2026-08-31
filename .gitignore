@@ -1,0 +1,3 @@
+# Go build and test artifacts
+*.test
+*.out
