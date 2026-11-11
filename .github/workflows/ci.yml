@@ -84,7 +84,7 @@ jobs:
       # surprise red build on an unrelated PR.
       - uses: golangci/golangci-lint-action@v9
         with:
-          version: v2.12.2
+          version: v2.15.0
 
   vulnerabilities:
     runs-on: ubuntu-latest
